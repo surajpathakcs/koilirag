@@ -28,6 +28,7 @@ logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
 # Now safe to import app modules - logfire is already active
 from fastapi import FastAPI, Response
 from app.agents.graph import rag_agent
+from app.agents.nodes.responder import generate_node
 from app.guardrails import initialize_rails, guard, GuardrailStatus
 
 from pydantic import BaseModel
@@ -76,12 +77,17 @@ def query(request: QueryRequest):
     thread_id = request.thread_id
 
     initial_state = {
-        "messages": [{"role": "user", "content": q}],
-        "current_query": q,
-        "documents": [],
-        "plan": ["Start"],
-        "status": "Initializing Graph..."
-    }
+    "messages": [{"role": "user", "content": q}],
+    "current_query": q,
+    "documents": [],
+    "plan": ["Start"],
+    "status": "Initializing Graph...",
+    "hallucination_retries": 0,
+    "grader_feedback": "",
+    "grader_passed": False,
+    "source_chunks": [],
+    "escalation": "none"
+}
     
     # Configuration for Memory (Thread ID)
     config = {"configurable": {"thread_id": thread_id}}
@@ -97,6 +103,19 @@ def query(request: QueryRequest):
             guard_result = guard(q)
 
             if guard_result.status == GuardrailStatus.BLOCKED:
+                # The off-topic decision comes from NeMo's "handle off topic" flow.
+                if guard_result.reason == "Rail triggered: handle off topic":
+                    initial_state["current_query"] = "OFF_TOPIC"
+                    off_topic_output = generate_node(initial_state)
+                    return {
+                        "question": q,
+                        "answer": off_topic_output.get("final_answer"),
+                        "thought_process": off_topic_output.get("plan"),
+                        "status": off_topic_output.get("status"),
+                        "sources": [],
+                        "source_chunks": [],
+                        "escalation": off_topic_output.get("escalation", "none")
+                    }
                 if pipeline_span:
                     pipeline_span.set_attribute("request.status", "blocked")
                     pipeline_span.set_attribute("request.blocked_reason", guard_result.reason or "unknown")
@@ -105,7 +124,9 @@ def query(request: QueryRequest):
                     "answer": guard_result.response,
                     "thought_process": ["Intent: Guardrails Blocked", f"Reason: {guard_result.reason}"],
                     "status": "Blocked by guardrails.",
-                    "sources": []
+                    "sources": [],
+                    "source_chunks": [],
+                    "escalation": "none"
                 }
 
             if guard_result.status == GuardrailStatus.ERROR:
@@ -117,6 +138,10 @@ def query(request: QueryRequest):
                 )
                 if pipeline_span:
                     pipeline_span.set_attribute("request.guardrail_error", True)
+                return {
+                    "answer": "The assistant is temporarily unavailable. Please try again later.",
+                    "status": "guardrail_error"
+                }
 
             # Gate 2: LangGraph RAG pipeline
             # Run the graph synchronously to preserve Logfire context variables
@@ -130,7 +155,9 @@ def query(request: QueryRequest):
                 "answer": final_output.get("final_answer"),
                 "thought_process": final_output.get("plan"),
                 "status": final_output.get("status"),
-                "sources": final_output.get("documents", [])
+                "sources": final_output.get("documents", []),
+                "source_chunks": final_output.get("source_chunks", []),
+                "escalation": final_output.get("escalation", "none")
             }
         except Exception as e:
             if pipeline_span:

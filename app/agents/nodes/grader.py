@@ -9,7 +9,7 @@ class Grade(BaseModel):
     grounded: str = Field(description="Are the claims in the answer grounded in the retrieved documents? 'yes' or 'no'")
 
 # We use a fast model for grading, no need for the massive 70b
-llm = get_langchain_llm(feature="grader").with_structured_output(Grade)
+llm = get_langchain_llm(feature="grader")
 
 def grader_node(state: AgentState):
     """
@@ -17,12 +17,16 @@ def grader_node(state: AgentState):
     """
     documents = state.get("documents", [])
     answer = state.get("final_answer", "")
-    retries = state.get("hallucination_retries", 0)
+    retries = state["hallucination_retries"]
 
     # If no documents were retrieved, we can't really check grounding in the traditional sense,
     # but the responder shouldn't have answered with external facts anyway.
     if not documents:
-        return {"status": "No documents to grade against."}
+        return {
+            "status": "No documents to grade against.",
+            "grader_passed": True,
+            "hallucination_retries": retries
+        }
 
     docs_str = "\n\n".join(documents)
     prompt = f"""
@@ -42,8 +46,11 @@ def grader_node(state: AgentState):
     with logfire.span("⚖️ Hallucination Grader") as span:
         start = time.perf_counter()
         try:
-            result = llm.invoke(prompt)
-            score = result.grounded.lower()
+            result = llm.invoke(prompt).content.strip().lower()
+            if result.startswith("yes"):
+                score = "yes"
+            else:
+                score = "no"
         except Exception as e:
             # If the structured output fails, assume it's grounded to avoid infinite loops
             logfire.error(f"Grader failed: {e}")
@@ -56,13 +63,29 @@ def grader_node(state: AgentState):
             span.set_attribute("grader.latency_ms", round(latency_ms, 1))
             span.set_attribute("grader.retries", retries)
 
-    if score == "yes" or retries >= 2:
+    if score == "yes":
         return {
             "status": "Answer is grounded and approved.",
-            "hallucination_retries": retries + 1
+            "grader_passed": True,
+            "grader_feedback": "",
+            "hallucination_retries": retries
         }
-    else:
+
+
+    if retries >= 2:
         return {
-            "status": "Hallucination detected. Forcing retry.",
-            "hallucination_retries": retries + 1
+            "status": "Maximum retries reached. Accepting answer.",
+            "grader_passed": True,
+            "hallucination_retries": retries
         }
+
+
+    return {
+        "status": "Hallucination detected. Regenerating.",
+        "grader_passed": False,
+        "grader_feedback": (
+            "Previous answer contained unsupported claims. "
+            "Answer only using the retrieved Fonepay information."
+        ),
+        "hallucination_retries": retries + 1
+}

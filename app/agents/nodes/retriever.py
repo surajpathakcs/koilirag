@@ -19,6 +19,8 @@ def retrieve_node(state: AgentState):
 
         formatted_docs = [f"SOURCE: {doc.get('source', 'Unknown')}\nCONTENT: {doc['content']}" for doc in reranked_results]
 
+        source_chunks = [{"id": doc.get("source", "Unknown"), "snippet": doc.get("content", "")[:500]} for doc in reranked_results]
+
         # Structured span attributes on the parent retrieval span
         if span:
             span.set_attribute("retrieval.query_length", len(query))
@@ -27,6 +29,7 @@ def retrieve_node(state: AgentState):
     
     return {
         "documents": formatted_docs,
+        "source_chunks": source_chunks,
         "status": f"Found technical context.",
         "plan": state["plan"] + ["Context Retrieved"]
     }
