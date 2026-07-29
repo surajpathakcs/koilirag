@@ -17,6 +17,7 @@ from app.guardrails.colang_rules import COLANG_CONTENT, YAML_CONTENT
 class GuardrailStatus(str, Enum):
     PASS = "pass"
     BLOCKED = "blocked"
+    DIALOG = "dialog"
     ERROR = "error"
 
 
@@ -119,82 +120,161 @@ def initialize_rails() -> None:
 def _extract_content(result) -> str:
     """
     NeMo's return type is polymorphic:
-      - Without options  → dict  {'role': 'assistant', 'content': '...'}
-      - With options     → GenerationResponse (Pydantic model)
-    This helper normalises both cases to a plain string.
+      - Without options  → dict {'role': 'assistant', 'content': '...'}
+      - With options     → GenerationResponse
     """
     if hasattr(result, "response"):
-        # GenerationResponse — .response is a list of message dicts
         resp = result.response
+
         if isinstance(resp, list) and resp:
             return resp[0].get("content", "")
+
         return str(resp)
+
     if isinstance(result, dict):
         return result.get("content", "")
+
     return str(result)
 
 
-def _check_rail_fired(result) -> tuple[bool, Optional[str]]:
-    """
-    Inspect the NeMo activated_rails log to determine whether a blocking
-    safety rail fired.
 
-    Dialog rails (greeting, farewell, capabilities) are intentionally ignored
-    because they are not security violations.
+def _check_rail_fired(result) -> tuple[str, Optional[str]]:
     """
+    Determines what kind of rail fired.
+
+    Returns:
+        blocked -> security/policy violation
+        dialog  -> greeting/farewell/capabilities
+        pass    -> no rail fired
+    """
+
     if not hasattr(result, "log") or result.log is None:
-        return False, None
+        logfire.warning(
+            "NeMo response does not contain activated rails log."
+        )
+        return "pass", None
+
 
     activated = result.log.activated_rails or []
+
+
+    # Temporary debugging.
+    # Remove after confirming rails work.
+    print("========== ACTIVATED RAILS ==========")
+
+    for rail in activated:
+        print("RAIL:", rail.name)
+
+    print("=====================================")
+
 
     for rail in activated:
         name = rail.name.lower()
 
+
         if name in _BLOCK_FLOW_NAMES:
-            return True, rail.name
-
-    return False, None
+            return "blocked", rail.name
 
 
-def _set_span_attrs(span, status: str, message: str, latency_ms: float,
-                    content: Optional[str] = None, error: Optional[str] = None,
-                    flow_name: Optional[str] = None) -> None:
-    """Centralised span attribute writer — avoids repeating the same 5 lines."""
+        if name in _DIALOG_FLOW_NAMES:
+            return "dialog", rail.name
+
+
+    return "pass", None
+
+
+
+def _set_span_attrs(
+    span,
+    status: str,
+    message: str,
+    latency_ms: float,
+    content: Optional[str] = None,
+    error: Optional[str] = None,
+    flow_name: Optional[str] = None
+) -> None:
+
     if not span:
         return
-    span.set_attribute("guardrail.status", status)
-    span.set_attribute("guardrail.query_length", len(message))
-    span.set_attribute("guardrail.latency_ms", round(latency_ms, 1))
+
+    span.set_attribute(
+        "guardrail.status",
+        status
+    )
+
+    span.set_attribute(
+        "guardrail.query_length",
+        len(message)
+    )
+
+    span.set_attribute(
+        "guardrail.latency_ms",
+        round(latency_ms, 1)
+    )
+
     if content:
-        span.set_attribute("guardrail.response_snippet", content[:100])
+        span.set_attribute(
+            "guardrail.response_snippet",
+            content[:100]
+        )
+
     if error:
-        span.set_attribute("guardrail.error", error[:200])
+        span.set_attribute(
+            "guardrail.error",
+            error[:200]
+        )
+
     if flow_name:
-        span.set_attribute("guardrail.flow_name", flow_name)
+        span.set_attribute(
+            "guardrail.flow_name",
+            flow_name
+        )
+
 
 
 # ── Guard Function ──────────────────────────────────────────────────────────────
 
 def guard(message: str) -> GuardrailResult:
     """
-    Run a user message through the NeMo safety gate.
+    Runs user message through NeMo safety gate.
 
-    Returns a GuardrailResult with one of three explicit statuses:
-      PASS    — query is clean, proceed to RAG pipeline.
-      BLOCKED — a safety rail fired, return the guardrail response immediately.
-      ERROR   — NeMo engine failed internally, caller decides fail-open/closed.
+    PASS:
+        Continue to RAG.
+
+    BLOCKED:
+        Return refusal.
+
+    DIALOG:
+        Return direct conversational response.
+
+    ERROR:
+        Guardrail failure.
     """
+
     if _rails is None:
-        logfire.warning("⚠️ Guardrails not initialised — cannot evaluate safety.")
+
+        logfire.warning(
+            "⚠️ Guardrails not initialised."
+        )
+
         return GuardrailResult(
             status=GuardrailStatus.ERROR,
             reason="Guardrails engine not initialised"
         )
-    
+
+
     message_lower = message.lower()
 
+
+
+    # --------------------------------------------------
+    # Deterministic jailbreak detection
+    # --------------------------------------------------
+
     for pattern in JAILBREAK_PATTERNS:
+
         if pattern in message_lower:
+
             logfire.warning(
                 "Deterministic jailbreak pattern matched: {pattern}",
                 pattern=pattern
@@ -210,8 +290,15 @@ def guard(message: str) -> GuardrailResult:
             )
 
 
+
+    # --------------------------------------------------
+    # Deterministic internal information detection
+    # --------------------------------------------------
+
     for pattern in INTERNAL_PATTERNS:
+
         if pattern in message_lower:
+
             logfire.warning(
                 "Deterministic internal information pattern matched: {pattern}",
                 pattern=pattern
@@ -226,55 +313,162 @@ def guard(message: str) -> GuardrailResult:
                 reason=f"Deterministic internal information match: {pattern}"
             )
 
+
+
     with logfire.span("🛡️ Guardrails Check") as span:
+
         start = time.perf_counter()
+
+
         try:
-            # Request the activated_rails log so we can inspect which
-            # Colang flow fired rather than guessing from response text.
+
             result = _rails.generate(
-                messages=[{"role": "user", "content": message}],
-                options={"log": {"activated_rails": True}}
+                messages=[
+                    {
+                        "role": "user",
+                        "content": message
+                    }
+                ],
+                options={
+                    "log": {
+                        "activated_rails": True
+                    }
+                }
             )
 
-            content = _extract_content(result)
-            content_lower = content.lower()
-            latency_ms = (time.perf_counter() - start) * 1000
 
-            # ── 1. Detect NeMo internal engine failure ──────────────────────
+            content = _extract_content(result)
+
+            content_lower = content.lower()
+
+
+            latency_ms = (
+                time.perf_counter() - start
+            ) * 1000
+
+
+
+            # --------------------------------------------------
+            # NeMo internal failure
+            # --------------------------------------------------
+
             if NEMO_INTERNAL_ERROR_STRING in content_lower:
-                _set_span_attrs(span, GuardrailStatus.ERROR.value,
-                                message, latency_ms, content=content)
-                logfire.error("❌ NeMo engine returned internal error instead of a decision.")
-                return GuardrailResult(
-                    status=GuardrailStatus.ERROR,
-                    reason="NeMo internal runtime error",
-                    response=content
+
+                _set_span_attrs(
+                    span,
+                    GuardrailStatus.ERROR.value,
+                    message,
+                    latency_ms,
+                    content=content
                 )
 
-            # ── 2. Check if a safety or dialog rail fired ───────────────────
-            fired, flow_name = _check_rail_fired(result)
+                return GuardrailResult(
+                    status=GuardrailStatus.ERROR,
+                    response=content,
+                    reason="NeMo internal runtime error"
+                )
 
-            if fired:
-                _set_span_attrs(span, GuardrailStatus.BLOCKED.value,
-                                message, latency_ms, content=content,
-                                flow_name=flow_name)
+
+
+            # --------------------------------------------------
+            # Inspect activated rails
+            # --------------------------------------------------
+
+            rail_status, flow_name = _check_rail_fired(result)
+
+
+
+            if rail_status == "blocked":
+
+                logfire.info(
+                    "Blocked rail detected: {flow}",
+                    flow=flow_name
+                )
+
+                _set_span_attrs(
+                    span,
+                    GuardrailStatus.BLOCKED.value,
+                    message,
+                    latency_ms,
+                    content=content,
+                    flow_name=flow_name
+                )
+
+
                 return GuardrailResult(
                     status=GuardrailStatus.BLOCKED,
                     response=content,
                     reason=f"Rail triggered: {flow_name}"
                 )
 
-            # ── 3. Clean pass ───────────────────────────────────────────────
-            _set_span_attrs(span, GuardrailStatus.PASS.value,
-                            message, latency_ms)
-            return GuardrailResult(status=GuardrailStatus.PASS)
+
+
+            if rail_status == "dialog":
+
+                logfire.info(
+                    "Dialog rail detected: {flow}",
+                    flow=flow_name
+                )
+
+
+                _set_span_attrs(
+                    span,
+                    GuardrailStatus.DIALOG.value,
+                    message,
+                    latency_ms,
+                    content=content,
+                    flow_name=flow_name
+                )
+
+
+                return GuardrailResult(
+                    status=GuardrailStatus.DIALOG,
+                    response=content,
+                    reason=f"Dialog rail triggered: {flow_name}"
+                )
+
+
+
+            # --------------------------------------------------
+            # Normal RAG request
+            # --------------------------------------------------
+
+            _set_span_attrs(
+                span,
+                GuardrailStatus.PASS.value,
+                message,
+                latency_ms
+            )
+
+
+            return GuardrailResult(
+                status=GuardrailStatus.PASS
+            )
+
+
 
         except Exception as e:
-            latency_ms = (time.perf_counter() - start) * 1000
-            print(f"Guardrail execution exception: {e}")
-            _set_span_attrs(span, GuardrailStatus.ERROR.value,
-                            message, latency_ms, error=str(e))
-            logfire.error("❌ Guardrail execution exception: {error}", error=str(e))
+
+            latency_ms = (
+                time.perf_counter() - start
+            ) * 1000
+
+
+            _set_span_attrs(
+                span,
+                GuardrailStatus.ERROR.value,
+                message,
+                latency_ms,
+                error=str(e)
+            )
+
+
+            logfire.error(
+                "❌ Guardrail execution exception: {error}",
+                error=str(e)
+            )
+
+
             return GuardrailResult(
                 status=GuardrailStatus.ERROR,
                 reason=f"Exception: {str(e)}"

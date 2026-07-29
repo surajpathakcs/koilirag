@@ -103,6 +103,8 @@ define user express greeting
   "howdy"
   "namaste"
   "namaskar"
+  "Hii I'm"
+  "Hii how are you?"
 
 define bot express greeting
   "Hello! I'm the Fonepay AI Assistant. I can help with Fonepay products, QR payments, merchant services, integrations, and support information. How can I help?"

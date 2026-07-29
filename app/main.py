@@ -55,6 +55,9 @@ class QueryRequest(BaseModel):
 def home():
     return {"message": "Fonepay AI Assistant API is live."}
 
+@app.get("/health")
+def health():
+    return {"status": "OK"}
 
 @app.get("/graph")
 def get_graph_image():
@@ -77,78 +80,141 @@ def query(request: QueryRequest):
     thread_id = request.thread_id
 
     initial_state = {
-    "messages": [{"role": "user", "content": q}],
-    "current_query": q,
-    "documents": [],
-    "plan": ["Start"],
-    "status": "Initializing Graph...",
-    "hallucination_retries": 0,
-    "grader_feedback": "",
-    "grader_passed": False,
-    "source_chunks": [],
-    "escalation": "none"
-}
-    
-    # Configuration for Memory (Thread ID)
-    config = {"configurable": {"thread_id": thread_id}}
-    
-    # Use explicit text in the top-level span instead of FastAPI HTTP method
+        "messages": [{"role": "user", "content": q}],
+        "current_query": q,
+        "documents": [],
+        "plan": ["Start"],
+        "status": "Initializing Graph...",
+        "hallucination_retries": 0,
+        "grader_feedback": "",
+        "grader_passed": False,
+        "source_chunks": [],
+        "escalation": "none"
+    }
+
+    config = {
+        "configurable": {
+            "thread_id": thread_id
+        }
+    }
+
     with logfire.span("📡 Query: {q_snippet}", q_snippet=q[:60]) as pipeline_span:
+
         if pipeline_span:
-            pipeline_span.set_attribute("request.query_length", len(q))
-            pipeline_span.set_attribute("request.thread_id", thread_id)
+            pipeline_span.set_attribute(
+                "request.query_length",
+                len(q)
+            )
+            pipeline_span.set_attribute(
+                "request.thread_id",
+                thread_id
+            )
 
         try:
-            # Gate 1: NeMo Guardrails — blocks off-topic, jailbreaks, and handles dialog
+
+            # --------------------------------------------------
+            # Gate 1: NeMo Guardrails
+            # --------------------------------------------------
             guard_result = guard(q)
 
+
+            # --------------------------------------------------
+            # Security / policy block
+            # --------------------------------------------------
             if guard_result.status == GuardrailStatus.BLOCKED:
-                # The off-topic decision comes from NeMo's "handle off topic" flow.
-                if guard_result.reason == "Rail triggered: handle off topic":
-                    initial_state["current_query"] = "OFF_TOPIC"
-                    off_topic_output = generate_node(initial_state)
-                    return {
-                        "question": q,
-                        "answer": off_topic_output.get("final_answer"),
-                        "thought_process": off_topic_output.get("plan"),
-                        "status": off_topic_output.get("status"),
-                        "sources": [],
-                        "source_chunks": [],
-                        "escalation": off_topic_output.get("escalation", "none")
-                    }
+
                 if pipeline_span:
-                    pipeline_span.set_attribute("request.status", "blocked")
-                    pipeline_span.set_attribute("request.blocked_reason", guard_result.reason or "unknown")
+                    pipeline_span.set_attribute(
+                        "request.status",
+                        "blocked"
+                    )
+                    pipeline_span.set_attribute(
+                        "request.blocked_reason",
+                        guard_result.reason or "unknown"
+                    )
+
                 return {
                     "question": q,
                     "answer": guard_result.response,
-                    "thought_process": ["Intent: Guardrails Blocked", f"Reason: {guard_result.reason}"],
+                    "thought_process": [
+                        "Intent: Guardrails Blocked",
+                        f"Reason: {guard_result.reason}"
+                    ],
                     "status": "Blocked by guardrails.",
                     "sources": [],
                     "source_chunks": [],
                     "escalation": "none"
                 }
 
-            if guard_result.status == GuardrailStatus.ERROR:
-                # Fail-open: log the error explicitly and proceed to RAG pipeline.
-                # The guardrail span already has guardrail.status="error" and guardrail.error attributes.
-                logfire.warning(
-                    "⚠️ Guardrail engine error — applying fail-open policy.",
-                    guardrail_reason=guard_result.reason
-                )
+
+            # --------------------------------------------------
+            # Dialog handling
+            # greeting / farewell / capabilities
+            # --------------------------------------------------
+            if guard_result.status == GuardrailStatus.DIALOG:
+
                 if pipeline_span:
-                    pipeline_span.set_attribute("request.guardrail_error", True)
+                    pipeline_span.set_attribute(
+                        "request.status",
+                        "dialog"
+                    )
+
                 return {
-                    "answer": "The assistant is temporarily unavailable. Please try again later.",
-                    "status": "guardrail_error"
+                    "question": q,
+                    "answer": guard_result.response,
+                    "thought_process": [
+                        "Intent: Dialog",
+                        f"Reason: {guard_result.reason}"
+                    ],
+                    "status": "Handled by dialog rail.",
+                    "sources": [],
+                    "source_chunks": [],
+                    "escalation": "none"
                 }
 
-            # Gate 2: LangGraph RAG pipeline
-            # Run the graph synchronously to preserve Logfire context variables
-            final_output = rag_agent.invoke(initial_state, config=config)
-            
+
+            # --------------------------------------------------
+            # Guardrail failure
+            # --------------------------------------------------
+            if guard_result.status == GuardrailStatus.ERROR:
+
+                logfire.warning(
+                    "⚠️ Guardrail engine error.",
+                    guardrail_reason=guard_result.reason
+                )
+
+                if pipeline_span:
+                    pipeline_span.set_attribute(
+                        "request.guardrail_error",
+                        True
+                    )
+
+                return {
+                    "question": q,
+                    "answer": "The assistant is temporarily unavailable. Please try again later.",
+                    "thought_process": [
+                        "Guardrail execution failed."
+                    ],
+                    "status": "guardrail_error",
+                    "sources": [],
+                    "source_chunks": [],
+                    "escalation": "none"
+                }
+
+
+            # --------------------------------------------------
+            # Normal RAG execution
+            # --------------------------------------------------
+            final_output = rag_agent.invoke(
+                initial_state,
+                config=config
+            )
+
             if pipeline_span:
-                pipeline_span.set_attribute("request.status", "success")
+                pipeline_span.set_attribute(
+                    "request.status",
+                    "success"
+                )
 
             return {
                 "question": q,
@@ -159,15 +225,33 @@ def query(request: QueryRequest):
                 "source_chunks": final_output.get("source_chunks", []),
                 "escalation": final_output.get("escalation", "none")
             }
+
+
         except Exception as e:
+
             if pipeline_span:
-                pipeline_span.set_attribute("request.status", "error")
-                pipeline_span.set_attribute("request.error", str(e)[:200])
-            logfire.error("❌ Backend Execution Failed: {error}", error=str(e))
+                pipeline_span.set_attribute(
+                    "request.status",
+                    "error"
+                )
+                pipeline_span.set_attribute(
+                    "request.error",
+                    str(e)[:200]
+                )
+
+            logfire.error(
+                "❌ Backend Execution Failed: {error}",
+                error=str(e)
+            )
+
             return {
                 "question": q,
                 "answer": "I apologize, but I encountered an internal error while processing your request. Please try again later.",
-                "thought_process": ["Error encountered during execution."],
+                "thought_process": [
+                    "Error encountered during execution."
+                ],
                 "status": "error",
-                "sources": []
+                "sources": [],
+                "source_chunks": [],
+                "escalation": "none"
             }
