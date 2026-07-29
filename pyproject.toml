@@ -23,6 +23,7 @@ dependencies = [
     "langgraph>=1.2.10",
     "langsmith>=0.9.7",
     "logfire[fastapi,requests,system-metrics]>=4.37.0",
+    "logging>=0.11.10",
     "loguru>=0.7.3",
     "nemoguardrails>=0.23.0",
     "nest-asyncio>=1.6.0",

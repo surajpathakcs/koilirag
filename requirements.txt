@@ -10,7 +10,9 @@ requests                    # HTTP library for internal/external API calls
 streamlit                   # Frontend dashboard for the chat interface
 numpy                       # Numerical processing
 pytz                        # Timezone handling for logs
-nest-asyncio                # Support for nested async loops in notebooks/streamlit
+nest-asyncio        
+
+logging        # Support for nested async loops in notebooks/streamlit
 
 fastembed
 # --- GEMINI EMBEDDINGS ---

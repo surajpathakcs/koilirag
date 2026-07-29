@@ -41,6 +41,9 @@ app = FastAPI(title="Fonepay AI Assistant API")
 # Automatic HTTP request/response span creation (Disabled to avoid GET / spam)
 # logfire.instrument_fastapi(app)
 
+import logging
+logging.getLogger("nemoguardrails").setLevel(logging.DEBUG)
+
 
 @app.on_event("startup")
 def startup_event():

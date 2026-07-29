@@ -148,11 +148,6 @@ define flow farewell
 
 
 YAML_CONTENT = """
-models:
-  - type: main
-    engine: groq
-    model: llama-3.3-70b-versatile
-
 instructions:
   - type: general
     content: |
