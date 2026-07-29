@@ -153,13 +153,6 @@ models:
     engine: groq
     model: llama-3.3-70b-versatile
 
-  - type: embeddings
-    engine: FastEmbed
-    model: all-MiniLM-L6-v2
-    parameters:
-      cache_dir: .cache/fastembed
-
-
 instructions:
   - type: general
     content: |
