@@ -14,13 +14,20 @@ os.environ["NEMOGUARDRAILS_LLM"] = "llama-3.3-70b-versatile"
 # returns "an internal error has occurred" instead of classifying intents.
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
-# Force offline mode to prevent HuggingFace ReadTimeoutErrors
-os.environ["HF_HUB_OFFLINE"] = "1"
+
 # Point fastembed to a project-local cache directory instead of the Windows
 # Temp folder, which suffers from symlink permission failures.
-os.environ["FASTEMBED_CACHE_PATH"] = os.path.join(
+fastembed_cache_path = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "fastembed"
 )
+os.environ["FASTEMBED_CACHE_PATH"] = fastembed_cache_path
+
+# Only force offline mode if the model is already cached locally (e.g. on a dev
+# machine after the first run). On a fresh environment (like a new Render
+# deploy) with no cache yet, leave this unset so fastembed is allowed to
+# download the model instead of failing silently.
+if os.path.isdir(fastembed_cache_path) and os.listdir(fastembed_cache_path):
+    os.environ["HF_HUB_OFFLINE"] = "1"
 
 
 logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
