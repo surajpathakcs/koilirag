@@ -472,6 +472,7 @@ def guard(message: str) -> GuardrailResult:
                 error=str(e)
             )
 
+            print(repr(e))
 
             logfire.error(
                 "❌ Guardrail execution exception: {error}",
