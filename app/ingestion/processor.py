@@ -48,9 +48,6 @@ def process_file(file_path: str, filename: str, source_type: str):
                 full_text = parse_html(file_path)
             elif ext == "txt":
                 full_text = parse_text(file_path)
-            elif ext in ("docx", "pptx"):
-                from app.ingestion.loaders.office import parse_office
-                full_text = parse_office(file_path)
             else:
                 logfire.warning(f"Skipping unsupported file type: {filename}")
                 return
