@@ -5,8 +5,9 @@ import os
 from typing import Dict, Any
 
 # --- API Configuration ---
-API_BASE_URL: str = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+API_BASE_URL: str = os.environ["API_BASE_URL"]
 API_TIMEOUT: int = int(os.getenv("API_TIMEOUT", "60"))
+print("API_BASE_URL:", API_BASE_URL)
 
 # --- Session State Keys ---
 class SessionKeys:
