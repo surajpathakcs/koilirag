@@ -100,7 +100,14 @@ def initialize_rails() -> None:
         model="llama-3.3-70b-versatile",
         temperature=0
     )
-
+    
+    try:
+        print("Testing direct Groq call...")
+        test = guard_llm.invoke("Say hello")
+        print("Groq response:", test)
+    except Exception:
+        logfire.exception("Direct ChatGroq test failed")
+        raise
     # NeMo 0.23+ requires an explicit adapter wrapper for LangChain models.
     # Passing the raw ChatGroq directly is deprecated and causes API key
     # misrouting when a model is also declared in the YAML config.
@@ -321,7 +328,7 @@ def guard(message: str) -> GuardrailResult:
 
 
         try:
-
+            
             result = _rails.generate(
                 messages=[
                     {
@@ -336,6 +343,9 @@ def guard(message: str) -> GuardrailResult:
                 }
             )
 
+            print("========== NEMO RAW RESULT ==========")
+            print(result)
+            print("=====================================")
 
             content = _extract_content(result)
 
