@@ -18,10 +18,12 @@ def retrieve_node(state: AgentState):
         # rerank_documents creates its own child span (⚖️ Semantic Reranking)
         reranked_results = rerank_documents(query, raw_results, top_n=settings.RETRIEVAL_TOP_N)
 
+        # Feed the LLM the marker-preserving content_md so it can place
+        # [[IMAGE: ...]] screenshots inline in its answer.
         formatted_docs = [
             f"SOURCE: {doc.get('source', 'Unknown')}\n"
             f"SECTION: {doc.get('section_path') or 'N/A'}\n"
-            f"CONTENT: {doc['content']}"
+            f"CONTENT: {doc.get('content_md') or doc['content']}"
             for doc in reranked_results
         ]
 

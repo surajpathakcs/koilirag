@@ -13,10 +13,11 @@ load_dotenv()
 logfire.configure(send_to_logfire=False, console=False)
 
 # Now safe to import app modules - logfire is already active
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, HTTPException
 from app.agents.graph import rag_agent
 from app.agents.nodes.responder import generate_node
 from app.guardrails import initialize_rails, guard, GuardrailStatus
+from app.services.images import fetch_image, is_valid_name
 
 from pydantic import BaseModel
 from typing import Optional
@@ -44,6 +45,22 @@ def home():
 @app.get("/health")
 def health():
     return {"status": "OK"}
+
+@app.get("/images/{name}")
+def get_image(name: str):
+    """Stream a manual screenshot from MinIO (keeps the bucket private)."""
+    if not is_valid_name(name):
+        raise HTTPException(status_code=400, detail="bad image name")
+    try:
+        data, content_type = fetch_image(name)
+    except Exception as e:
+        logfire.warning("Image fetch failed: {name} — {err}", name=name, err=str(e))
+        raise HTTPException(status_code=404, detail="image not found")
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 @app.get("/graph")
 def get_graph_image():

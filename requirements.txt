@@ -24,6 +24,9 @@ pydantic>=2.0.0
 qdrant-client             # embedded (local dir) vector store
 flashrank                 # local ONNX cross-encoder reranker
 
+# --- OBJECT STORAGE (screenshots) ---
+minio                     # this project's own MinIO / S3-compatible bucket
+
 # --- DOCUMENT PARSING ---
 python-docx
 python-pptx

@@ -27,6 +27,7 @@ def search_enterprise_knowledge(query: str, limit: int = 8):
             for res in response.points:
                 results.append({
                     "content": res.payload.get("text", ""),
+                    "content_md": res.payload.get("content_md", res.payload.get("text", "")),
                     "source": res.payload.get("source", "Unknown"),
                     "section_path": res.payload.get("section_path", ""),
                     "title": res.payload.get("title", ""),

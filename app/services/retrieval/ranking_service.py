@@ -50,6 +50,7 @@ def rerank_documents(query: str, documents: list[dict], top_n: int = 5) -> list[
                         "source": doc.get("source", "Unknown"),
                         "section_path": doc.get("section_path", ""),
                         "images": doc.get("images", []),
+                        "content_md": doc.get("content_md", doc.get("content", "")),
                     },
                 }
                 for i, doc in enumerate(documents)
@@ -64,6 +65,7 @@ def rerank_documents(query: str, documents: list[dict], top_n: int = 5) -> list[
                 meta = res.get("meta", {})
                 reranked_docs.append({
                     "content": res['text'],
+                    "content_md": meta.get("content_md", res['text']),
                     "source": meta.get("source", "Unknown"),
                     "section_path": meta.get("section_path", ""),
                     "images": meta.get("images", []),

@@ -37,6 +37,15 @@ class Settings:
     # Off by default: on CPU the extra grader LLM call roughly doubles latency.
     ENABLE_GRADER: bool = _flag("ENABLE_GRADER", "false")
 
+    # ── Screenshots (MinIO / S3-compatible object store — this project's own) ──
+    MINIO_ENDPOINT: str = (os.getenv("MINIO_ENDPOINT") or "localhost:9000").strip()
+    MINIO_ACCESS_KEY: str = (os.getenv("MINIO_ACCESS_KEY") or "koili").strip()
+    MINIO_SECRET_KEY: str = (os.getenv("MINIO_SECRET_KEY") or "").strip()
+    MINIO_SECURE: bool = _flag("MINIO_SECURE", "false")
+    MINIO_BUCKET: str = (os.getenv("MINIO_BUCKET") or "koili-manual").strip()
+    # Path prefix the UI hits on the API to fetch an image (see /images/{name}).
+    IMAGE_URL_PREFIX: str = (os.getenv("IMAGE_URL_PREFIX") or "/images").strip().rstrip("/")
+
     ENVIRONMENT: str = (os.getenv("ENVIRONMENT") or "local").strip()
 
 

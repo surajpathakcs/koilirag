@@ -102,6 +102,12 @@ Formatting:
    - Lists: use bullets.
    - Troubleshooting: explain the issue and available actions.
 
+17a. Screenshots: the manual content contains markers like
+[[IMAGE: manual_img_042.jpg]]. When you describe a step that one of these markers
+illustrates, copy that exact marker onto its own line right after that step.
+Only reuse markers that appear in the provided content — never invent one, never
+alter the filename. Omit markers for steps you are not describing.
+
 Accuracy:
 
 18. Never fabricate:

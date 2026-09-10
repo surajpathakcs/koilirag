@@ -21,7 +21,10 @@ __pycache__/
 # Local vector store (embedded Qdrant)
 qdrant_data/
 processed_data/
+minio_data/
 
 .cache/
 .python-version
 .vscode/
+# Manual screenshots — deployment assets, uploaded to MinIO not git
+DATA/images/

@@ -1,8 +1,29 @@
 """
 Chat feed component for rendering message turns, thought steps, and retrieved sources.
 """
+import re
 import streamlit as st
 from typing import List, Dict, Any
+
+from ui.config import API_BASE_URL
+
+_IMAGE_MARKER = re.compile(r"\[\[IMAGE:\s*([^\]]+?)\s*\]\]")
+
+
+def _render_with_screenshots(content: str):
+    """Render assistant text, replacing [[IMAGE: name]] markers with the actual
+    screenshot fetched through the API's /images proxy."""
+    pos = 0
+    for m in _IMAGE_MARKER.finditer(content):
+        before = content[pos:m.start()].strip()
+        if before:
+            st.markdown(before)
+        name = m.group(1).strip()
+        st.image(f"{API_BASE_URL}/images/{name}", use_container_width=True)
+        pos = m.end()
+    tail = content[pos:].strip()
+    if tail:
+        st.markdown(tail)
 
 def render_chat_feed(messages: List[Dict[str, Any]]):
     """
@@ -29,10 +50,13 @@ def render_chat_feed(messages: List[Dict[str, Any]]):
             
             # 2. Guardrails / Warning notice
             if status == "Blocked by guardrails.":
-                st.warning("🛡️ Response intercepted by NeMo Safety Guardrails.")
+                st.warning("🛡️ Response intercepted by safety guardrails.")
 
-            # 3. Main content
-            st.markdown(content)
+            # 3. Main content (assistant answers may embed screenshot markers)
+            if role == "assistant":
+                _render_with_screenshots(content)
+            else:
+                st.markdown(content)
             
             # 4. Render retrieved sources expander if documents exist
             if sources:

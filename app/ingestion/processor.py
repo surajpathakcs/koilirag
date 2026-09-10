@@ -87,6 +87,7 @@ def process_file(file_path: str, filename: str, source_type: str):
                         vector=vector,
                         payload={
                             "text": rec["text"],
+                            "content_md": rec.get("content_md", rec["text"]),
                             "source": filename,
                             "source_type": source_type,
                             "section_number": rec.get("section_number", ""),

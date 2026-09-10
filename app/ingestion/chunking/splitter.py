@@ -89,11 +89,12 @@ def chunk_markdown_hierarchical(text: str) -> List[Dict]:
     (``Koili TMS Manual > 6. Branch > 6.3. View Branch Details > ...``) is
     prepended to every chunk so it stands alone for embedding and retrieval.
 
-    ``[[IMAGE: ...]]`` markers are stripped from the embedded text but their
-    filenames are kept per chunk (in order) so screenshots can be shown later.
+    ``[[IMAGE: ...]]`` markers are stripped from ``text`` (used for embedding and
+    reranking) but kept inline in ``content_md`` (fed to the LLM so it can place
+    screenshots in its answer). ``images`` lists the filenames in order.
 
-    Returns a list of dicts: ``text``, ``section_number``, ``title``,
-    ``section_path``, ``part`` and ``images``.
+    Returns a list of dicts: ``text``, ``content_md``, ``section_number``,
+    ``title``, ``section_path``, ``part`` and ``images``.
     """
     with logfire.span("✂️ Hierarchical Markdown Chunking", text_length=len(text)):
         sections = _parse_sections(text)
@@ -128,10 +129,11 @@ def chunk_markdown_hierarchical(text: str) -> List[Dict]:
                         chunks[-1]["images"].extend(images)
                     continue
                 suffix = f" (part {idx} of {total})" if total > 1 else ""
-                chunk_text_value = f"{section_path}{suffix}\n\n{clean_part}"
+                header = f"{section_path}{suffix}"
                 chunks.append(
                     {
-                        "text": chunk_text_value,
+                        "text": f"{header}\n\n{clean_part}",
+                        "content_md": f"{header}\n\n{part.strip()}",
                         "section_number": section["number"] or "",
                         "title": section["title"],
                         "section_path": section_path,
