@@ -1,9 +1,19 @@
+import re
 import time
 import logfire
 from app.agents.state import AgentState
 from app.config import settings
 from app.gateway import get_langchain_llm
-from app.services.image_placement import extract_marker_contexts, place_images
+from app.services.answer_mode import (
+    VERBATIM,
+    decide,
+    render_verbatim,
+    section_body,
+    section_heading,
+)
+
+# Markers the synthesis path must never leak into a paraphrased answer.
+_STRAY_MARKER = re.compile(r"\[\[IMAGE:[^\]]*\]\]")
 
 # Shared input budget; tune these limits together.
 MAX_PROMPT_CHARS = 30000
@@ -172,6 +182,41 @@ def _classify_escalation(query: str, answer: str, has_context: bool) -> str:
     return "none"
 
 
+LEAD_IN_PROMPT = """You are the Koili TMS Assistant.
+
+The user asked a how-to question. The exact steps from the manual will be shown
+to them directly below your reply, so do NOT list, number, or repeat any steps.
+
+Write only 1-2 short sentences introducing what follows. If the question asked
+about something these sections do not cover, say briefly what is missing.
+Plain sentences, no headings, no bullets, no step numbers.
+
+MANUAL SECTIONS FOUND:
+{sections}
+
+USER QUESTION:
+{question}
+"""
+
+
+def _generate_lead_in(question: str, chunks: list[dict]) -> str:
+    """One short framing sentence. Steps are rendered verbatim, so this call is
+    tiny — a few dozen output tokens instead of a full rewrite."""
+    sections = "\n\n".join(
+        f"[{section_heading(c)}]\n{section_body(c)[:700]}" for c in chunks
+    )
+    prompt = LEAD_IN_PROMPT.format(sections=sections, question=question)
+    try:
+        llm = get_langchain_llm("rag").bind(max_tokens=140)
+        text = llm.invoke(prompt).content.strip()
+    except Exception as e:
+        logfire.warning("Lead-in generation failed: {err}", err=str(e))
+        return ""
+    # Guard against a small model ignoring the instruction and emitting steps.
+    first = text.split("\n\n")[0].strip()
+    return first if len(first) <= 600 else first[:600]
+
+
 def generate_node(state: AgentState):
     """
     Synthesizes a response using Koili TMS manual context and conversation history.
@@ -213,6 +258,32 @@ def generate_node(state: AgentState):
                     "content": refusal_msg
                 }
             ]
+        }
+
+    # ── Verbatim path ────────────────────────────────────────────────────────
+    # Procedural sections are reproduced exactly as the manual writes them:
+    # correct button names, and screenshot markers already sitting at the step
+    # they illustrate. The LLM only writes the lead-in.
+    retrieved = state.get("retrieved", [])
+    if decide(query, retrieved) == VERBATIM and retrieved:
+        with logfire.span("📋 Verbatim Manual Render") as span:
+            start = time.perf_counter()
+            lead_in = _generate_lead_in(user_msg, retrieved)
+            content = render_verbatim(retrieved, lead_in)
+            if span:
+                span.set_attribute("generation.mode", "verbatim")
+                span.set_attribute("generation.section_count", len(retrieved))
+                span.set_attribute(
+                    "generation.latency_ms", round((time.perf_counter() - start) * 1000, 1)
+                )
+
+        return {
+            "final_answer": content,
+            "status": f"Answered from {len(retrieved)} manual section(s).",
+            "plan": state["plan"] + ["Rendered manual sections verbatim"],
+            "source_chunks": state.get("source_chunks", []),
+            "escalation": "none",
+            "messages": [{"role": "assistant", "content": content}],
         }
 
     generation_mode = "koili_tms_manual_rag"
@@ -261,13 +332,9 @@ def generate_node(state: AgentState):
                 ]
             )
 
-            content = response.content.strip()
-
-            # Re-insert the manual's screenshots at the steps they illustrate.
-            content = place_images(
-                content,
-                extract_marker_contexts(state.get("documents", [])),
-            )
+            # Synthesis path: no screenshots (conceptual answers don't need
+            # them, and paraphrased text has no reliable image anchors).
+            content = _STRAY_MARKER.sub("", response.content).strip()
 
             is_cache_hit = False
             status = "Response generated."

@@ -86,6 +86,7 @@ def query(request: QueryRequest):
         "messages": [{"role": "user", "content": q}],
         "current_query": q,
         "documents": [],
+        "retrieved": [],
         "plan": ["Start"],
         "status": "Initializing Graph...",
         "hallucination_retries": 0,

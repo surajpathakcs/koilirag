@@ -69,6 +69,7 @@ def rerank_documents(query: str, documents: list[dict], top_n: int = 5) -> list[
                     "source": meta.get("source", "Unknown"),
                     "section_path": meta.get("section_path", ""),
                     "images": meta.get("images", []),
+                    "score": float(res.get("score", 0.0)),
                 })
 
             latency_ms = (time.perf_counter() - start) * 1000
