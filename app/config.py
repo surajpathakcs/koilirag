@@ -16,7 +16,8 @@ class Settings:
     LLM_MODEL: str = (os.getenv("LLM_MODEL") or "qwen2.5:7b-instruct").strip()
     # Smaller/faster model for planner + grader. Defaults to the main model.
     LLM_MODEL_FAST: str = (os.getenv("LLM_MODEL_FAST") or os.getenv("LLM_MODEL") or "qwen2.5:3b-instruct").strip()
-    LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT") or "120")
+    LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT") or "300")
+    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS") or "900")
 
     # ── Embeddings (local, via Ollama). Dimension is probed at runtime. ───────
     EMBEDDING_MODEL: str = (os.getenv("EMBEDDING_MODEL") or "qwen3-embedding:0.6b").strip()
@@ -33,7 +34,8 @@ class Settings:
     RETRIEVAL_TOP_N: int = int(os.getenv("RETRIEVAL_TOP_N") or "5")
 
     # ── Graph behaviour ─────────────────────────────────────────────────────
-    ENABLE_GRADER: bool = _flag("ENABLE_GRADER", "true")
+    # Off by default: on CPU the extra grader LLM call roughly doubles latency.
+    ENABLE_GRADER: bool = _flag("ENABLE_GRADER", "false")
 
     ENVIRONMENT: str = (os.getenv("ENVIRONMENT") or "local").strip()
 

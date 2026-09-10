@@ -28,6 +28,7 @@ def get_langchain_llm(feature: str = "rag"):
         temperature=0,
         timeout=settings.LLM_TIMEOUT,
         max_retries=1,
+        max_tokens=settings.LLM_MAX_TOKENS,
     )
 
 
