@@ -1,6 +1,7 @@
 import time
 import logfire
 from pydantic import BaseModel, Field
+from app.config import settings
 from app.agents.state import AgentState
 from app.gateway import get_langchain_llm
 
@@ -18,6 +19,13 @@ def grader_node(state: AgentState):
     documents = state.get("documents", [])
     answer = state.get("final_answer", "")
     retries = state["hallucination_retries"]
+
+    if not settings.ENABLE_GRADER:
+        return {
+            "status": "Grader disabled.",
+            "grader_passed": True,
+            "hallucination_retries": retries,
+        }
 
     # If no documents were retrieved, we can't really check grounding in the traditional sense,
     # but the responder shouldn't have answered with external facts anyway.
@@ -85,7 +93,7 @@ def grader_node(state: AgentState):
         "grader_passed": False,
         "grader_feedback": (
             "Previous answer contained unsupported claims. "
-            "Answer only using the retrieved Fonepay information."
+            "Answer only using the retrieved Koili TMS manual content."
         ),
         "hallucination_retries": retries + 1
 }

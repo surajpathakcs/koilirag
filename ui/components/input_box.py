@@ -21,6 +21,6 @@ def render_input_box(messages_empty: bool) -> Optional[str]:
                 selected_prompt = prompt_text
 
     # Main chat input bar
-    user_input = st.chat_input("Ask a question about Fonepay Merchant Services, APIs, or Hardware...")
+    user_input = st.chat_input("Ask a question about using the Koili TMS portal...")
     
     return selected_prompt or user_input

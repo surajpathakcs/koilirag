@@ -1,15 +1,10 @@
 import logfire
-from qdrant_client import QdrantClient
-from qdrant_client.http import models
 from app.config import settings
 from app.services.retrieval.embedding import embed_query
+from app.services.retrieval.store import get_qdrant_client
 
 
-# Initialize Qdrant Client
-client = QdrantClient(
-    url=settings.QDRANT_URL,
-    api_key=settings.QDRANT_API_KEY
-)
+client = get_qdrant_client()
 
 def search_enterprise_knowledge(query: str, limit: int = 8):
     """
@@ -33,6 +28,9 @@ def search_enterprise_knowledge(query: str, limit: int = 8):
                 results.append({
                     "content": res.payload.get("text", ""),
                     "source": res.payload.get("source", "Unknown"),
+                    "section_path": res.payload.get("section_path", ""),
+                    "title": res.payload.get("title", ""),
+                    "images": res.payload.get("images", []),
                     "score": res.score
                 })
 

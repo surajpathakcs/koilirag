@@ -28,7 +28,7 @@ def initialize_session():
 def main():
     # 1. Page Configuration
     st.set_page_config(
-        page_title="Fonepay AI Assistant Dashboard",
+        page_title="Koili TMS Assistant Dashboard",
         page_icon="🛡️",
         layout="wide",
         initial_sidebar_state="expanded"

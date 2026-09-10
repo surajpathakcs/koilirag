@@ -18,6 +18,10 @@ __pycache__/
 .venv
 .env
 
+# Local vector store (embedded Qdrant)
+qdrant_data/
+processed_data/
+
 .cache/
 .python-version
 .vscode/

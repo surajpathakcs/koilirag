@@ -7,27 +7,14 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-os.environ["NEMOGUARDRAILS_LLM_FRAMEWORK"] = "langchain"
-os.environ["NEMOGUARDRAILS_LLM"] = "llama-3.3-70b-versatile"
-# Prevent fastembed/huggingface_hub symlink failures on Windows.
-# Without this, the embedding model download silently corrupts and NeMo
-# returns "an internal error has occurred" instead of classifying intents.
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
 
-# Point fastembed to a project-local cache directory instead of the Windows
-# Temp folder, which suffers from symlink permission failures.
+# Keep the fastembed model cache inside the project.
 fastembed_cache_path = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "fastembed"
 )
-os.environ["FASTEMBED_CACHE_PATH"] = fastembed_cache_path
-
-# Only force offline mode if the model is already cached locally (e.g. on a dev
-# machine after the first run). On a fresh environment (like a new Render
-# deploy) with no cache yet, leave this unset so fastembed is allowed to
-# download the model instead of failing silently.
-if os.path.isdir(fastembed_cache_path) and os.listdir(fastembed_cache_path):
-    os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ.setdefault("FASTEMBED_CACHE_PATH", fastembed_cache_path)
 
 
 logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
@@ -43,14 +30,10 @@ from typing import Optional
 
 
 # Initialize FastAPI
-app = FastAPI(title="Fonepay AI Assistant API")
+app = FastAPI(title="Koili TMS Assistant API")
 
 # Automatic HTTP request/response span creation (Disabled to avoid GET / spam)
 # logfire.instrument_fastapi(app)
-
-import logging
-logging.getLogger("nemoguardrails").setLevel(logging.DEBUG)
-
 
 @app.on_event("startup")
 def startup_event():
@@ -63,7 +46,7 @@ class QueryRequest(BaseModel):
     
 @app.get("/")
 def home():
-    return {"message": "Fonepay AI Assistant API is live."}
+    return {"message": "Koili TMS Assistant API is live."}
 
 @app.get("/health")
 def health():

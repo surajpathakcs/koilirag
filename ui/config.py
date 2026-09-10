@@ -5,9 +5,9 @@ import os
 from typing import Dict, Any
 
 # --- API Configuration ---
-API_BASE_URL: str = os.environ["API_BASE_URL"]
+API_BASE_URL: str = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 API_TIMEOUT: int = int(os.getenv("API_TIMEOUT", "60"))
-print("API_BASE_URL:", API_BASE_URL)
+# print("API_BASE_URL:", API_BASE_URL)
 
 # --- Session State Keys ---
 class SessionKeys:
@@ -18,10 +18,10 @@ class SessionKeys:
 
 # --- Example Prompt Suggestions ---
 EXAMPLE_PROMPTS = [
-    "How do I become a Fonepay merchant?",
-    "What is the difference between static and dynamic QR?",
-    "How do I integrate Fonepay dynamic QR with my POS?",
-    "Can Indian customers use UPI for QR payments in Nepal?"
+    "How do I assign an IPN to a merchant?",
+    "What are the seven user roles in the TMS?",
+    "How does a checker approve a pending request?",
+    "How do I configure Pumari billing setup?"
 ]
 
 # --- Custom CSS Styling ---

@@ -10,7 +10,7 @@ def render_chat_feed(messages: List[Dict[str, Any]]):
     expandable thought logs, and source cards.
     """
     if not messages:
-        st.info("💡 Ask a question below to start chatting with the Fonepay AI Assistant.")
+        st.info("💡 Ask a question below to start chatting with the Koili TMS Assistant.")
         return
 
     for msg in messages:

@@ -4,26 +4,24 @@ import uuid
 import json
 import logfire
 
-from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
 from app.config import settings
 from app.services.retrieval.embedding import embed_texts, get_embedding_dim
+from app.services.retrieval.store import get_qdrant_client
 from app.ingestion.loaders.pdf import parse_pdf
 from app.ingestion.loaders.html import parse_html
 from app.ingestion.loaders.text import parse_text
-from app.ingestion.chunking.splitter import chunk_text
+from app.ingestion.loaders.markdown import parse_markdown
+from app.ingestion.chunking.splitter import chunk_text, chunk_markdown_hierarchical
 
-logfire.configure(service_name="fonepay-ingestion-service")
+logfire.configure(service_name="koili-tms-ingestion-service")
 
 # Local folder where parsed + chunked JSON metadata is saved (replaces GCS processed bucket)
 PROCESSED_DATA_DIR = "processed_data"
 
-# Initialize Qdrant Client
-qdrant_client = QdrantClient(
-    url=settings.QDRANT_CLUSTER_END_POINT,
-    api_key=settings.QDRANT_API_KEY,
-)
+# Initialize Qdrant Client (embedded local dir by default)
+qdrant_client = get_qdrant_client()
 
 
 def save_processed_locally(data: dict, source_type: str, filename: str) -> str:
@@ -42,12 +40,15 @@ def process_file(file_path: str, filename: str, source_type: str):
         try:
             # 1. Extract text based on file extension
             ext = filename.lower().rsplit(".", 1)[-1]
+            is_markdown = ext in ("md", "markdown")
             if ext == "pdf":
                 full_text = parse_pdf(file_path)
             elif ext in ("html", "htm"):
                 full_text = parse_html(file_path)
             elif ext == "txt":
                 full_text = parse_text(file_path)
+            elif is_markdown:
+                full_text = parse_markdown(file_path)
             else:
                 logfire.warning(f"Skipping unsupported file type: {filename}")
                 return
@@ -56,34 +57,44 @@ def process_file(file_path: str, filename: str, source_type: str):
                 logfire.warning(f"No text extracted from {filename} — skipping.")
                 return
 
-            # 2. Chunk text
-            chunks = chunk_text(full_text)
-            if not chunks:
+            # 2. Chunk text. Markdown uses hierarchy-aware chunking so every
+            #    chunk is a single self-contained section; other formats fall
+            #    back to the paragraph splitter.
+            if is_markdown:
+                chunk_records = chunk_markdown_hierarchical(full_text)
+            else:
+                chunk_records = [{"text": c} for c in chunk_text(full_text)]
+            if not chunk_records:
                 return
 
             # 3. Save processed metadata locally
             processed_data = {
                 "filename": filename,
                 "source_type": source_type,
-                "chunks": chunks,
+                "chunks": chunk_records,
             }
             local_path = save_processed_locally(processed_data, source_type, filename)
-            logfire.info(f"Saved processed data → {local_path}")
+            logfire.info(f"Saved processed data -> {local_path}")
 
             # 4. Embed and index in Qdrant
             with logfire.span("Vectorizing & Indexing"):
-                embeddings = embed_texts(chunks)
+                texts = [rec["text"] for rec in chunk_records]
+                embeddings = embed_texts(texts)
                 points = [
                     models.PointStruct(
                         id=str(uuid.uuid4()),
                         vector=vector,
                         payload={
-                            "text": chunk,
+                            "text": rec["text"],
                             "source": filename,
                             "source_type": source_type,
+                            "section_number": rec.get("section_number", ""),
+                            "title": rec.get("title", ""),
+                            "section_path": rec.get("section_path", ""),
+                            "images": rec.get("images", []),
                         },
                     )
-                    for chunk, vector in zip(chunks, embeddings)
+                    for rec, vector in zip(chunk_records, embeddings)
                 ]
 
                 qdrant_client.upsert(
@@ -156,12 +167,11 @@ def run_universal_ingestion(base_dir: str, explicit_source_type: str = None, wip
 
 if __name__ == "__main__":
     # Usage:
-    #   python -m app.ingestion.processor data/production --wipe
-    #   python -m app.ingestion.processor data/production/hr hr
+    #   python -m app.ingestion.processor "DATA/tmsmanual" tmsmanual --wipe
     wipe_requested = "--wipe" in sys.argv
     clean_args = [a for a in sys.argv if a != "--wipe"]
 
-    target_dir = clean_args[1] if len(clean_args) > 1 else "data/production"
+    target_dir = clean_args[1] if len(clean_args) > 1 else "DATA/tmsmanual"
     explicit_type = clean_args[2] if len(clean_args) > 2 else None
 
     if not os.path.exists(target_dir):

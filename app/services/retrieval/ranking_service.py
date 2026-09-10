@@ -43,7 +43,15 @@ def rerank_documents(query: str, documents: list[dict], top_n: int = 5) -> list[
             # FlashRank expects a list of dictionaries with 'id' and 'text'. 
             # We also pass 'meta' so we can recover the source.
             passages = [
-                {"id": i, "text": doc["content"], "meta": {"source": doc.get("source", "Unknown")}}
+                {
+                    "id": i,
+                    "text": doc["content"],
+                    "meta": {
+                        "source": doc.get("source", "Unknown"),
+                        "section_path": doc.get("section_path", ""),
+                        "images": doc.get("images", []),
+                    },
+                }
                 for i, doc in enumerate(documents)
             ]
 
@@ -53,9 +61,12 @@ def rerank_documents(query: str, documents: list[dict], top_n: int = 5) -> list[
             # Results are returned sorted by highest semantic score first
             reranked_docs = []
             for res in results[:top_n]:
+                meta = res.get("meta", {})
                 reranked_docs.append({
                     "content": res['text'],
-                    "source": res.get("meta", {}).get("source", "Unknown")
+                    "source": meta.get("source", "Unknown"),
+                    "section_path": meta.get("section_path", ""),
+                    "images": meta.get("images", []),
                 })
 
             latency_ms = (time.perf_counter() - start) * 1000

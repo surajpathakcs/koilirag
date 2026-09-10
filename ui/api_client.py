@@ -19,7 +19,7 @@ class QueryResponse:
 
 class RAGApiClient:
     """
-    HTTP Client managing API requests to the Fonepay AI Assistant FastAPI server.
+    HTTP Client managing API requests to the Koili TMS Assistant FastAPI server.
     """
     def __init__(self, base_url: str, timeout: int = 60):
         self.base_url = base_url.rstrip("/")
@@ -27,7 +27,7 @@ class RAGApiClient:
         self.session = requests.Session()
         self.session.headers.update({
             "Content-Type": "application/json",
-            "User-Agent": "Fonepay-RAG-Streamlit-UI/1.0"
+            "User-Agent": "Koili-TMS-RAG-Streamlit-UI/1.0"
         })
 
     def check_health(self) -> bool:

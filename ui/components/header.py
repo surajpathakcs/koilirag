@@ -10,7 +10,7 @@ def render_header(is_connected: bool):
     col1, col2 = st.columns([4, 1])
     
     with col1:
-        st.title("🛡️ Fonepay AI Assistant")
+        st.title("🛡️ Koili TMS Assistant")
         st.caption("Powered by LangGraph · NeMo Guardrails · Qdrant · Groq Llama 3.3 · Logfire")
         
     with col2:
