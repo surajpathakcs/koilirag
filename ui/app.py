@@ -79,6 +79,7 @@ def main():
             "content": response.answer,
             "thought_process": response.thought_process,
             "sources": response.sources,
+            "source_chunks": response.source_chunks,
             "status": response.status
         })
 

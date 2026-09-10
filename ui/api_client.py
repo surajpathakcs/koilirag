@@ -15,6 +15,7 @@ class QueryResponse:
     thought_process: List[str] = field(default_factory=list)
     status: str = "success"
     sources: List[Dict[str, Any]] = field(default_factory=list)
+    source_chunks: List[Dict[str, Any]] = field(default_factory=list)
     error_message: Optional[str] = None
 
 class RAGApiClient:
@@ -63,7 +64,8 @@ class RAGApiClient:
                 answer=data.get("answer", "No answer returned from server."),
                 thought_process=data.get("thought_process", []),
                 status=data.get("status", "completed"),
-                sources=data.get("sources", [])
+                sources=data.get("sources", []),
+                source_chunks=data.get("source_chunks", []),
             )
         except requests.exceptions.Timeout:
             logger.error("API request timed out.")
