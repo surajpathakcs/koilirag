@@ -28,10 +28,10 @@ def initialize_session():
 def main():
     # 1. Page Configuration
     st.set_page_config(
-        page_title="Koili TMS Assistant Dashboard",
-        page_icon="🛡️",
-        layout="wide",
-        initial_sidebar_state="expanded"
+        page_title="Koili Assistant",
+        page_icon="🟢",
+        layout="centered",
+        initial_sidebar_state="collapsed"
     )
 
     # 2. Inject Custom CSS
@@ -70,7 +70,7 @@ def main():
         })
 
         # Display Spinner & Send Query to LangGraph Backend
-        with st.spinner("🧠 LangGraph Agent executing planning, retrieval & answer generation..."):
+        with st.spinner("Searching the manual…"):
             response = api_client.send_query(query=prompt, thread_id=thread_id)
 
         # Append Assistant Turn

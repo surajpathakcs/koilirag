@@ -10,7 +10,7 @@ def render_sidebar(api_client: RAGApiClient):
     Renders sidebar controls, thread state, and architecture inspection tools.
     """
     with st.sidebar:
-        st.header("⚙️ Session Controls")
+        st.subheader("Session")
         
         # Thread Selection for LangGraph MemorySaver
         current_thread = st.text_input(
@@ -21,14 +21,14 @@ def render_sidebar(api_client: RAGApiClient):
         st.session_state[SessionKeys.THREAD_ID] = current_thread
         
         # Clear Conversation Button
-        if st.button("🗑️ Clear Conversation", use_container_width=True):
+        if st.button("New chat", use_container_width=True):
             st.session_state[SessionKeys.MESSAGES] = []
             st.rerun()
-            
+
         st.divider()
-        
+
         # Architecture Workflow Viewer
-        st.subheader("🗺️ Agent Architecture")
+        st.subheader("Architecture")
         with st.expander("State Graph Diagram", expanded=False):
             if st.button("Fetch Live Graph", use_container_width=True):
                 graph_bytes = api_client.get_workflow_graph()
@@ -43,14 +43,16 @@ def render_sidebar(api_client: RAGApiClient):
         st.divider()
         
         # System Architecture Notes
-        st.subheader("System Stack")
+        st.subheader("Stack")
         st.markdown(
             """
-            - **Gateway**: Portkey / Groq `Llama 3.3`
-            - **Safety**: NeMo Guardrails
-            - **Agent Core**: LangGraph Linear Flow
-            - **Vector Database**: Qdrant Cloud
-            - **Reranker**: FlashRank Cross-Encoder
-            - **Tracing**: Pydantic Logfire
+            - **LLM**: Ollama · `qwen2.5`
+            - **Embeddings**: `qwen3-embedding`
+            - **Vector DB**: Qdrant
+            - **Reranker**: FlashRank
+            - **Agent**: LangGraph
+            - **Images**: MinIO
+
+            Runs fully local — nothing leaves this machine.
             """
         )

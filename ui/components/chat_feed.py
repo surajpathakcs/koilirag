@@ -59,10 +59,12 @@ def _render_answer(content: str):
         st.markdown(tail)
 
 
+_AVATARS = {"assistant": "🟢", "user": "🧑"}
+
+
 def render_chat_feed(messages: List[Dict[str, Any]]):
     if not messages:
-        st.info("💡 Ask a question below to start chatting with the Koili TMS Assistant.")
-        return
+        return  # the empty state lives in the input box hero
 
     for msg in messages:
         role = msg.get("role", "user")
@@ -71,9 +73,9 @@ def render_chat_feed(messages: List[Dict[str, Any]]):
         sources = msg.get("sources", [])
         status = msg.get("status", "")
 
-        with st.chat_message(role):
+        with st.chat_message(role, avatar=_AVATARS.get(role)):
             if thought_process:
-                with st.expander("🧠 Agent Thought Process & Graph Steps", expanded=False):
+                with st.expander("Reasoning steps", expanded=False):
                     for idx, step in enumerate(thought_process, 1):
                         st.markdown(f"**Step {idx}:** `{step}`")
 
@@ -86,7 +88,7 @@ def render_chat_feed(messages: List[Dict[str, Any]]):
                 st.markdown(content)
 
             if sources:
-                with st.expander(f"📚 Retrieved Knowledge Sources ({len(sources)})", expanded=False):
+                with st.expander(f"Manual sections used ({len(sources)})", expanded=False):
                     for idx, doc in enumerate(sources, 1):
                         text = doc if isinstance(doc, str) else str(doc)
                         source_name = f"Chunk #{idx}"

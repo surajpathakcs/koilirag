@@ -6,3 +6,10 @@ gatherUsageStats = false
 address = "0.0.0.0"
 port = 8501
 headless = true
+
+[theme]
+base = "light"
+primaryColor = "#10a37f"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f7f7f8"
+textColor = "#202123"

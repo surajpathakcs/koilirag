@@ -1,26 +1,30 @@
 """
-Input box component supporting user text input and prompt suggestion buttons.
+Empty-state hero with suggestion chips, plus the chat input bar.
 """
 import streamlit as st
 from typing import Optional
 from ui.config import EXAMPLE_PROMPTS
 
+
 def render_input_box(messages_empty: bool) -> Optional[str]:
-    """
-    Renders prompt chips if no conversation exists yet, and returns prompt input.
-    """
     selected_prompt: Optional[str] = None
-    
-    # Prompt suggestion buttons if chat is fresh
+
     if messages_empty:
-        st.markdown("**Suggested Queries:**")
+        st.markdown(
+            """
+            <div class="koili-hero">
+                <h1>How can I help with Koili TMS?</h1>
+                <p>Ask about branches, users and roles, merchants, IPN devices,
+                   schemes, partners, billing, settings or audit logs.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         cols = st.columns(2)
         for i, prompt_text in enumerate(EXAMPLE_PROMPTS):
-            col = cols[i % 2]
-            if col.button(prompt_text, key=f"suggestion_{i}", use_container_width=True):
+            if cols[i % 2].button(prompt_text, key=f"suggestion_{i}", use_container_width=True):
                 selected_prompt = prompt_text
 
-    # Main chat input bar
-    user_input = st.chat_input("Ask a question about using the Koili TMS portal...")
-    
+    user_input = st.chat_input("Message Koili Assistant…")
+
     return selected_prompt or user_input
