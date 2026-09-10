@@ -3,6 +3,7 @@ import logfire
 from app.agents.state import AgentState
 from app.config import settings
 from app.gateway import get_langchain_llm
+from app.services.image_placement import extract_marker_contexts, place_images
 
 # Shared input budget; tune these limits together.
 MAX_PROMPT_CHARS = 30000
@@ -261,6 +262,12 @@ def generate_node(state: AgentState):
             )
 
             content = response.content.strip()
+
+            # Re-insert the manual's screenshots at the steps they illustrate.
+            content = place_images(
+                content,
+                extract_marker_contexts(state.get("documents", [])),
+            )
 
             is_cache_hit = False
             status = "Response generated."
