@@ -10,7 +10,11 @@ a short lead-in. Conceptual sections fall back to normal synthesis.
 import re
 from typing import List, Dict
 
+import logfire
+import numpy as np
+
 from app.config import settings
+from app.services.retrieval.embedding import embed_texts
 
 VERBATIM = "verbatim"
 SYNTHESIS = "synthesis"
@@ -26,18 +30,54 @@ _SYNTHESIS_VERB = re.compile(
 )
 
 
-def gate_by_score(reranked: List[Dict]) -> List[Dict]:
-    """Keep chunks scoring within RERANK_SCORE_RATIO of the top hit. The
-    cross-encoder already judged query relevance — reuse that instead of
-    handing the LLM chunks it will ignore."""
-    if not reranked:
+_LEADING_NUMBER = re.compile(r"^\s*\d+(?:\.\d+)*\.?\s*")
+
+
+def heading_text(chunk: Dict) -> str:
+    """Task name for a section, without its numbering, with its parent module
+    for context: '10.4. Assign IPN to a Merchant' -> 'Merchant: Assign IPN to a
+    Merchant'."""
+    parts = [p.strip() for p in (chunk.get("section_path") or "").split(" > ") if p.strip()]
+    parts = [_LEADING_NUMBER.sub("", p) for p in parts[1:]]  # drop the doc title
+    if not parts:
+        return chunk.get("title", "")
+    return f"{parts[0]}: {parts[-1]}" if len(parts) > 1 else parts[0]
+
+
+def select_sections(query: str, candidates: List[Dict]) -> List[Dict]:
+    """Pick the section(s) that answer the query.
+
+    Body text across sibling sections in this manual is near-identical
+    ("Navigate to the Assigned IPNs list...") so a body reranker cannot tell
+    10.3/10.4/10.5 apart. The headings can: they are literally the task names.
+    So re-score the reranked candidates on query<->heading similarity, take the
+    best, and add another only if it is essentially tied — the real "two ways
+    to do X" case (e.g. both password-setting methods).
+    """
+    if not candidates:
         return []
-    top = reranked[0].get("score") or 0.0
-    if top <= 0:
-        kept = reranked[:1]
-    else:
-        cutoff = settings.RERANK_SCORE_RATIO * top
-        kept = [d for d in reranked if (d.get("score") or 0.0) >= cutoff]
+    if len(candidates) == 1:
+        return candidates
+
+    headings = [heading_text(c) for c in candidates]
+    try:
+        vecs = np.array(embed_texts([query] + headings), dtype=np.float32)
+    except Exception as e:
+        logfire.warning("Heading selection failed, falling back to rerank order: {e}", e=str(e))
+        return candidates[: settings.MAX_ANSWER_CHUNKS]
+
+    vecs /= np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-8
+    sims = vecs[1:] @ vecs[0]
+
+    order = np.argsort(-sims)
+    best = float(sims[order[0]])
+    kept = [candidates[i] for i in order if best - float(sims[i]) <= settings.HEADING_TIE_DELTA]
+
+    logfire.info(
+        "Heading selection: {picked} (from {n} candidates)",
+        picked=[headings[i] for i in order if best - float(sims[i]) <= settings.HEADING_TIE_DELTA],
+        n=len(candidates),
+    )
     return kept[: settings.MAX_ANSWER_CHUNKS]
 
 

@@ -3,23 +3,23 @@ from app.config import settings
 from app.agents.state import AgentState
 from app.services.retrieval.qdrant_service import search_enterprise_knowledge
 from app.services.retrieval.ranking_service import rerank_documents
-from app.services.answer_mode import gate_by_score
+from app.services.answer_mode import select_sections
 
 
 def retrieve_node(state: AgentState):
     """
-    Vector search -> cross-encoder rerank -> score gate.
+    Vector search -> cross-encoder rerank (recall) -> heading selection (precision).
 
-    The gate keeps only the chunks the reranker actually rates as answering the
-    query (usually one section, sometimes two alternative methods), so the
-    responder is never handed sections it will ignore.
+    Sibling sections in this manual share almost identical body text, so the
+    final pick is made on query<->heading similarity: normally one section,
+    two only when the headings tie.
     """
     query = state["current_query"]
 
     with logfire.span("🔍 Knowledge Retrieval") as span:
         raw_results = search_enterprise_knowledge(query, limit=settings.RETRIEVAL_CANDIDATES)
         reranked_results = rerank_documents(query, raw_results, top_n=settings.RETRIEVAL_TOP_N)
-        kept = gate_by_score(reranked_results)
+        kept = select_sections(query, reranked_results)
 
         formatted_docs = [
             f"SOURCE: {doc.get('source', 'Unknown')}\n"

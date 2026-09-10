@@ -32,11 +32,12 @@ class Settings:
     # ── Retrieval tuning ─────────────────────────────────────────────────────
     RETRIEVAL_CANDIDATES: int = int(os.getenv("RETRIEVAL_CANDIDATES") or "25")
     RETRIEVAL_TOP_N: int = int(os.getenv("RETRIEVAL_TOP_N") or "5")
-    # Keep only reranked chunks scoring within this fraction of the top hit.
-    # One section per chunk means the answer usually lives in 1-2 of them.
-    RERANK_SCORE_RATIO: float = float(os.getenv("RERANK_SCORE_RATIO") or "0.6")
+    # Sections are chosen by query<->heading similarity (the manual's headings
+    # are a task index). Only sections within this margin of the best heading
+    # match are kept — that's the genuine "two ways to do X" case.
+    HEADING_TIE_DELTA: float = float(os.getenv("HEADING_TIE_DELTA") or "0.03")
     # Hard cap on chunks handed to the responder.
-    MAX_ANSWER_CHUNKS: int = int(os.getenv("MAX_ANSWER_CHUNKS") or "3")
+    MAX_ANSWER_CHUNKS: int = int(os.getenv("MAX_ANSWER_CHUNKS") or "2")
 
     # ── Graph behaviour ─────────────────────────────────────────────────────
     # Off by default: on CPU the extra grader LLM call roughly doubles latency.
