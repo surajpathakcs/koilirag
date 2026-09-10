@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
+# Local-only: never send telemetry off the machine.
+logfire.configure(send_to_logfire=False, console=False)
 
 # Now safe to import app modules - logfire is already active
 from fastapi import FastAPI, Response

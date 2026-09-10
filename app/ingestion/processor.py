@@ -15,7 +15,8 @@ from app.ingestion.loaders.text import parse_text
 from app.ingestion.loaders.markdown import parse_markdown
 from app.ingestion.chunking.splitter import chunk_text, chunk_markdown_hierarchical
 
-logfire.configure(service_name="koili-tms-ingestion-service")
+# Local-only: never send telemetry off the machine.
+logfire.configure(send_to_logfire=False, service_name="koili-tms-ingestion-service")
 
 # Local folder where parsed + chunked JSON metadata is saved (replaces GCS processed bucket)
 PROCESSED_DATA_DIR = "processed_data"
