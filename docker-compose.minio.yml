@@ -11,7 +11,7 @@ services:
       - "9101:9101"
     environment:
       MINIO_ROOT_USER: koili
-      MINIO_ROOT_PASSWORD: change-me
+      MINIO_ROOT_PASSWORD: koili123
     volumes:
       - ./minio_data:/data
     restart: unless-stopped
