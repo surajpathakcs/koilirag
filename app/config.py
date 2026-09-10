@@ -13,14 +13,13 @@ class Settings:
     LLM_PROVIDER: str = (os.getenv("LLM_PROVIDER") or "ollama").strip().lower()
     OLLAMA_BASE_URL: str = (os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434").strip().rstrip("/")
     # Main answer-generation model.
-    LLM_MODEL: str = (os.getenv("LLM_MODEL") or "qwen2.5:7b-instruct-q4_K_M").strip()
+    LLM_MODEL: str = (os.getenv("LLM_MODEL") or "qwen2.5:7b-instruct").strip()
     # Smaller/faster model for planner + grader. Defaults to the main model.
-    LLM_MODEL_FAST: str = (os.getenv("LLM_MODEL_FAST") or os.getenv("LLM_MODEL") or "qwen2.5:7b-instruct-q4_K_M").strip()
+    LLM_MODEL_FAST: str = (os.getenv("LLM_MODEL_FAST") or os.getenv("LLM_MODEL") or "qwen2.5:3b-instruct").strip()
     LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT") or "120")
 
-    # ── Embeddings (local, fastembed ONNX on CPU) ─────────────────────────────
-    EMBEDDING_MODEL: str = (os.getenv("EMBEDDING_MODEL") or "BAAI/bge-base-en-v1.5").strip()
-    EMBEDDING_DIM: int = int(os.getenv("EMBEDDING_DIM") or "768")
+    # ── Embeddings (local, via Ollama). Dimension is probed at runtime. ───────
+    EMBEDDING_MODEL: str = (os.getenv("EMBEDDING_MODEL") or "qwen3-embedding:0.6b").strip()
 
     # ── Vector store (embedded Qdrant — local directory, no server) ───────────
     QDRANT_PATH: str = (os.getenv("QDRANT_PATH") or "./qdrant_data").strip()

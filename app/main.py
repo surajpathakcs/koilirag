@@ -7,14 +7,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
-os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
-
-# Keep the fastembed model cache inside the project.
-fastembed_cache_path = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "fastembed"
-)
-os.environ.setdefault("FASTEMBED_CACHE_PATH", fastembed_cache_path)
 
 
 logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))

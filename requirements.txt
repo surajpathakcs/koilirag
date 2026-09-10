@@ -19,8 +19,8 @@ langchain-openai          # OpenAI-compatible client -> local Ollama /v1
 langchain-community
 pydantic>=2.0.0
 
-# --- EMBEDDINGS & RETRIEVAL (local, CPU) ---
-fastembed                 # ONNX embeddings on CPU (BAAI/bge-base-en-v1.5)
+# --- EMBEDDINGS & RETRIEVAL (local) ---
+# Embeddings run through Ollama (langchain-openai above).
 qdrant-client             # embedded (local dir) vector store
 flashrank                 # local ONNX cross-encoder reranker
 
